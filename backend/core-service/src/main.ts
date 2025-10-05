@@ -5,14 +5,18 @@ import { ValidationPipe } from '@nestjs/common';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // ✅ Tambahkan ValidationPipe agar semua input dicek otomatis
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
+app.useGlobalPipes(new ValidationPipe());
 
-  // ✅ Aktifkan CORS kalau frontend React akan akses API
-  app.enableCors();
+  app.enableCors({
+    origin: '*', // nanti ubah ke domain React kamu misalnya 'http://localhost:5173'
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  });
 
   const port = process.env.APP_PORT || 3001;
+
   await app.listen(port);
   console.log(`🚀 Server running on http://localhost:${port}`);
 }
+process.env.TZ = 'Asia/Jakarta';
 bootstrap();
