@@ -11,7 +11,7 @@ export class User {
   @Column({ unique: true })
   email: string;
 
-  @Column({ select: false }) // jaga supaya password tidak ikut ke response
+  @Column({ select: false }) 
   password: string;
 
   @Column({ nullable: true })
