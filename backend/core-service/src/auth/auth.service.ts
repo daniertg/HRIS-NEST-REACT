@@ -26,7 +26,7 @@ export class AuthService {
   async login(email: string, password: string) {
     const user = await this.userRepo.findOne({
       where: { email },
-      select: ['id', 'name', 'email', 'password', 'phone', 'position', 'photo'],
+      select: ['id', 'name', 'email', 'password', 'phone', 'position', 'photo', 'role'],
     });
 
     if (!user) throw new UnauthorizedException('Email tidak ditemukan');
@@ -34,7 +34,8 @@ export class AuthService {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) throw new UnauthorizedException('Password salah');
 
-    const payload = { sub: user.id, email: user.email };
+    const payload = { sub: user.id, email: user.email, role: user.role };
+
     const token = this.jwt.sign(payload);
 
     return {
@@ -46,6 +47,7 @@ export class AuthService {
         phone: user.phone,
         position: user.position,
         photo: user.photo,
+        role: user.role,
       },
     };
   }

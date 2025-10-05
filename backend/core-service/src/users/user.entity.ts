@@ -22,4 +22,7 @@ export class User {
 
   @Column({ nullable: true })
   photo: string;
+
+  @Column({ type: 'enum', enum: ['admin', 'user'], default: 'user' })
+  role: 'admin' | 'user';
 }
