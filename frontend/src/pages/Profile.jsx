@@ -30,7 +30,7 @@ export default function Profile() {
       setProfile({
         name: data.name || "",
         email: data.email || "",
-        phoneNumber: data.phone || "",
+        phoneNumber: data.phoneNumber || data.phone || "",
         position: data.position || "",
         profilePicture: data.photo || "",
       });
@@ -51,15 +51,23 @@ export default function Profile() {
     e.preventDefault();
     setLoading(true);
     try {
-      const updatedUser = await userService.updateProfile({
+      await userService.updateProfile({
         name: profile.name,
         phone: profile.phoneNumber,
         position: profile.position,
       });
-      updateUser(updatedUser);
+      
+      // Update user in context
+      updateUser({
+        name: profile.name,
+        phoneNumber: profile.phoneNumber,
+        position: profile.position,
+      });
+      
       alert("✅ Profile updated successfully!");
     } catch (error) {
-      alert("❌ Failed to update profile");
+      console.error("Update error:", error);
+      alert("❌ Failed to update profile: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -71,13 +79,18 @@ export default function Profile() {
       alert("❌ New passwords do not match");
       return;
     }
+    if (passwordForm.newPassword.length < 6) {
+      alert("❌ Password must be at least 6 characters");
+      return;
+    }
     setLoading(true);
     try {
       await userService.updateProfile({ password: passwordForm.newPassword });
       alert("✅ Password updated successfully!");
       setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
     } catch (error) {
-      alert("❌ Failed to update password");
+      console.error("Password update error:", error);
+      alert("❌ Failed to update password: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -86,16 +99,39 @@ export default function Profile() {
   const handlePictureUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    
+    // Validate file type
+    if (!file.type.match(/^image\/(png|jpe?g|gif|webp)$/)) {
+      alert("❌ Only image files are allowed");
+      return;
+    }
+    
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert("❌ File size must be less than 5MB");
+      return;
+    }
+    
     const formData = new FormData();
     formData.append("photo", file);
     setLoading(true);
     try {
       const response = await userService.uploadProfilePicture(formData);
-      setProfile((prev) => ({ ...prev, profilePicture: response.photo }));
-      updateUser({ photo: response.photo });
+      const newPhotoPath = response.photo;
+      
+      // Update local state
+      setProfile((prev) => ({ ...prev, profilePicture: newPhotoPath }));
+      
+      // Update user context
+      updateUser({ photo: newPhotoPath });
+      
       alert("✅ Profile picture updated successfully!");
+      
+      // Force re-fetch profile to ensure we have the latest data
+      await fetchProfile();
     } catch (error) {
-      alert("❌ Failed to upload picture");
+      console.error("Upload error:", error);
+      alert("❌ Failed to upload picture: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -122,7 +158,7 @@ export default function Profile() {
                     src={`${import.meta.env.VITE_API_URL.replace(
                       "/api",
                       ""
-                    )}/${profile.profilePicture}`}
+                    )}${profile.profilePicture}`}
                     alt="Profile"
                     className="img-fluid h-100 w-100 object-fit-cover"
                   />
@@ -175,7 +211,8 @@ export default function Profile() {
                       name="name"
                       className="form-control"
                       value={profile.name}
-                      disabled
+                      onChange={handleProfileChange}
+                      placeholder="Enter full name"
                     />
                   </div>
                   <div className="col-md-6">
@@ -206,7 +243,8 @@ export default function Profile() {
                       name="position"
                       className="form-control"
                       value={profile.position}
-                      disabled
+                      onChange={handleProfileChange}
+                      placeholder="Enter position"
                     />
                   </div>
                 </div>
