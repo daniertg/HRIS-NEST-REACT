@@ -9,9 +9,16 @@ export class AuthController {
   async register(
     @Body('name') name: string,
     @Body('email') email: string,
+    @Body('phoneNumber') phoneNumber: string,
+    @Body('position') position: string,
     @Body('password') password: string,
   ) {
-    return this.auth.register(name, email, password);
+    const result = await this.auth.register(name, email, phoneNumber, position, password);
+    return {
+      success: true,
+      message: 'User registered successfully',
+      data: result
+    };
   }
 
   @Post('login')
@@ -19,6 +26,12 @@ export class AuthController {
     @Body('email') email: string,
     @Body('password') password: string,
   ) {
-    return this.auth.login(email, password);
+    const result = await this.auth.login(email, password);
+    return {
+      success: true,
+      message: 'Login successful',
+      access_token: result.access_token,
+      user: result.user
+    };
   }
 }

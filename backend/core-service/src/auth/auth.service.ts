@@ -12,12 +12,18 @@ export class AuthService {
     private jwt: JwtService,
   ) {}
 
-  async register(name: string, email: string, password: string) {
+  async register(name: string, email: string, phoneNumber: string, position: string, password: string) {
     const exists = await this.userRepo.findOne({ where: { email } });
     if (exists) throw new BadRequestException('Email sudah terdaftar');
 
     const hashed = await bcrypt.hash(password, 10);
-    const user = this.userRepo.create({ name, email, password: hashed });
+    const user = this.userRepo.create({ 
+      name, 
+      email, 
+      phone: phoneNumber,
+      position,
+      password: hashed 
+    });
     await this.userRepo.save(user);
 
     return { message: 'Registrasi berhasil', id: user.id };

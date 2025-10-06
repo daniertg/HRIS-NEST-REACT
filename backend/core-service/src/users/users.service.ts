@@ -22,7 +22,7 @@ export class UsersService {
 
   async updateProfile(
     id: number,
-    data: Partial<{ phone: string; photo: string; password: string }>,
+    data: Partial<{ phone: string; photo: string; password: string; name: string; position: string }>,
   ) {
     // 🔍 1. Cek apakah user ada
     const user = await this.userRepo.findOne({ where: { id } });
@@ -40,6 +40,12 @@ export class UsersService {
     if (data.password !== undefined) {
       user.password = data.password;
     }
+    if (data.name !== undefined) {
+      user.name = data.name;
+    }
+    if (data.position !== undefined) {
+      user.position = data.position;
+    }
 
     // 💾 3. Simpan ke database
     await this.userRepo.save(user);
@@ -53,6 +59,7 @@ export class UsersService {
         email: user.email,
         phone: user.phone,
         photo: user.photo,
+        position: user.position,
       },
     };
   }
