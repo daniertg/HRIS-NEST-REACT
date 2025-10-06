@@ -24,10 +24,13 @@ const Dashboard = () => {
       
       if (user.role === 'user') {
         // Get today's attendance
-        const today = new Date().toISOString().split('T')[0];
-        const todayResponse = await attendanceService.getMyAttendance(today, today);
+        const todayResponse = await attendanceService.getMyAttendance();
+        const allRecords = todayResponse.data || [];
         
-        const todayRecords = todayResponse.data || [];
+        // Filter untuk hari ini
+        const today = new Date().toISOString().split('T')[0];
+        const todayRecords = allRecords.filter(record => record.date === today);
+        
         const clockInRecord = todayRecords.find(record => record.status === 'IN');
         const clockOutRecord = todayRecords.find(record => record.status === 'OUT');
         
@@ -36,17 +39,14 @@ const Dashboard = () => {
           clockOutTime: clockOutRecord ? `${clockOutRecord.date}T${clockOutRecord.time}` : null
         });
         
-        // Get monthly attendance
+        // Get monthly attendance count
         const currentMonth = new Date();
-        const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-        const monthlyResponse = await attendanceService.getMyAttendance(
-          startOfMonth.toISOString().split('T')[0],
-          today
-        );
+        const startOfMonth = `${currentMonth.getFullYear()}-${(currentMonth.getMonth() + 1).toString().padStart(2, '0')}-01`;
+        const monthlyRecords = allRecords.filter(record => record.date >= startOfMonth);
         
         setStats(prev => ({
           ...prev,
-          monthlyAttendance: monthlyResponse.data ? monthlyResponse.data.length : 0
+          monthlyAttendance: monthlyRecords.length
         }));
       } else if (user.role === 'admin') {
         const usersData = await userService.getAllUsers();

@@ -27,13 +27,13 @@ class ApiService {
 
     try {
       const response = await fetch(url, config);
+      const data = await response.json();
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
       }
       
-      return await response.json();
+      return data;
     } catch (error) {
       console.error('API request failed:', error);
       throw error;
@@ -104,25 +104,43 @@ export const userService = {
 
 // Attendance Service
 export const attendanceService = {
-  async getMyAttendance(startDate, endDate) {
-    const params = new URLSearchParams();
-    if (startDate) params.append('startDate', startDate);
-    if (endDate) params.append('endDate', endDate);
+  async getMyAttendance() {
+    const user = JSON.parse(localStorage.getItem('user'));
+    const userId = user?.id;
     
-    return apiService.get(`/attendance/my?${params.toString()}`);
-  },
-
-  async getAllAttendance(filters = {}) {
-    const params = new URLSearchParams(filters);
-    return apiService.get(`/attendance?${params.toString()}`);
+    console.log('Fetching attendance for user:', userId);
+    
+    if (!userId) {
+      throw new Error('User not found. Please login again.');
+    }
+    
+    try {
+      // Backend controller langsung return array dari getByUser method
+      const response = await apiService.get(`/attendance/${userId}`);
+      console.log('Raw attendance API response:', response);
+      
+      // Response adalah array langsung, bukan wrapped dalam data
+      return { data: Array.isArray(response) ? response : [] };
+    } catch (error) {
+      console.error('Failed to fetch attendance:', error);
+      return { data: [] };
+    }
   },
 
   async clockIn() {
-    return apiService.post('/attendance/clock-in');
+    return apiService.post('/attendance', { status: 'IN' });
   },
 
   async clockOut() {
-    return apiService.post('/attendance/clock-out');
+    return apiService.post('/attendance', { status: 'OUT' });
+  },
+
+  async getSummary(startDate, endDate) {
+    return apiService.post('/attendance/summary', { startDate, endDate });
+  },
+
+  async getAllAttendance(filters = {}) {
+    return { data: [] };
   },
 };
 

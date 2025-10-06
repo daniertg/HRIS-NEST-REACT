@@ -18,22 +18,43 @@ const Attendance = () => {
 
   const fetchTodayAttendance = async () => {
     try {
+      const data = await attendanceService.getMyAttendance();
+      const allRecords = data.data || [];
+
+      // Sort all by date then time (ascending)
+      allRecords.sort((a, b) => {
+        const d = a.date.localeCompare(b.date);
+        return d !== 0 ? d : a.time.localeCompare(b.time);
+      });
+
+      // Last overall status (drives which button is enabled)
+      const lastOverall = allRecords.length ? allRecords[allRecords.length - 1] : null;
+      const overallLastStatus = lastOverall ? lastOverall.status : null;
+
+      // Today-only for display
       const today = new Date().toISOString().split('T')[0];
-      const data = await attendanceService.getMyAttendance(today, today);
-      
-      // Process data to get today's attendance
-      const todayRecords = data.data || [];
-      const clockInRecord = todayRecords.find(record => record.status === 'IN');
-      const clockOutRecord = todayRecords.find(record => record.status === 'OUT');
-      
+      const todayRecords = allRecords.filter(r => r.date === today);
+      todayRecords.sort((a, b) => a.time.localeCompare(b.time));
+
+      const lastIn = [...todayRecords.filter(r => r.status === 'IN')].pop() || null;
+      const lastOut = [...todayRecords.filter(r => r.status === 'OUT')].pop() || null;
+
       setTodayAttendance({
-        clockInTime: clockInRecord ? `${clockInRecord.date}T${clockInRecord.time}` : null,
-        clockOutTime: clockOutRecord ? `${clockOutRecord.date}T${clockOutRecord.time}` : null,
-        hasClockIn: !!clockInRecord,
-        hasClockOut: !!clockOutRecord
+        lastStatus: overallLastStatus, // 'IN' | 'OUT' | null (controls buttons)
+        clockInTime: lastIn ? `${lastIn.date}T${lastIn.time}` : null,
+        clockOutTime: lastOut ? `${lastOut.date}T${lastOut.time}` : null,
+        date: today,
+        records: todayRecords,
       });
     } catch (error) {
       console.error('Failed to fetch today attendance:', error);
+      setTodayAttendance({
+        lastStatus: null,
+        clockInTime: null,
+        clockOutTime: null,
+        date: new Date().toISOString().split('T')[0],
+        records: [],
+      });
     }
   };
 
@@ -41,11 +62,13 @@ const Attendance = () => {
     setLoading(true);
     try {
       await attendanceService.clockIn();
+      // Optimistic enable OUT
+      setTodayAttendance(prev => ({ ...(prev || {}), lastStatus: 'IN' }));
       await fetchTodayAttendance();
-      alert('Clock in successful!');
+      alert('✅ Clock in successful!');
     } catch (error) {
       console.error('Failed to clock in:', error);
-      alert('Failed to clock in');
+      alert('❌ Failed to clock in: ' + (error.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -55,11 +78,13 @@ const Attendance = () => {
     setLoading(true);
     try {
       await attendanceService.clockOut();
+      // Optimistic enable IN
+      setTodayAttendance(prev => ({ ...(prev || {}), lastStatus: 'OUT' }));
       await fetchTodayAttendance();
-      alert('Clock out successful!');
+      alert('✅ Clock out successful!');
     } catch (error) {
       console.error('Failed to clock out:', error);
-      alert('Failed to clock out');
+      alert('❌ Failed to clock out: ' + (error.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -86,12 +111,14 @@ const Attendance = () => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleTimeString('id-ID', {
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
   };
 
-  const canClockIn = !todayAttendance?.clockInTime;
-  const canClockOut = todayAttendance?.clockInTime && !todayAttendance?.clockOutTime;
+  // Exactly one button active based on overall lastStatus
+  const lastStatus = todayAttendance?.lastStatus || null;
+  const canClockIn = !loading && (lastStatus !== 'IN');   // allow IN if last not IN
+  const canClockOut = !loading && (lastStatus === 'IN');  // allow OUT only if last is IN
 
   return (
     <Layout>
@@ -138,14 +165,12 @@ const Attendance = () => {
 
               <button
                 onClick={handleClockIn}
-                disabled={!canClockIn || loading}
+                disabled={!canClockIn}
                 className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
-                  canClockIn && !loading
-                    ? 'bg-green-600 hover:bg-green-700 text-white'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  canClockIn ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
               >
-                {loading ? 'Processing...' : canClockIn ? 'Clock In' : 'Already Clocked In'}
+                {canClockIn ? 'Clock In' : 'Already Clocked In (or waiting to Out)'}
               </button>
             </div>
           </div>
@@ -168,15 +193,12 @@ const Attendance = () => {
 
               <button
                 onClick={handleClockOut}
-                disabled={!canClockOut || loading}
+                disabled={!canClockOut}
                 className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
-                  canClockOut && !loading
-                    ? 'bg-red-600 hover:bg-red-700 text-white'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  canClockOut ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
               >
-                {loading ? 'Processing...' : canClockOut ? 'Clock Out' : 
-                 !todayAttendance?.clockInTime ? 'Clock In First' : 'Already Clocked Out'}
+                {canClockOut ? 'Clock Out' : 'Clock In first'}
               </button>
             </div>
           </div>
@@ -186,28 +208,28 @@ const Attendance = () => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-6">Today's Summary</h3>
           
-          {todayAttendance ? (
+          {todayAttendance && (todayAttendance.hasClockIn || todayAttendance.hasClockOut) ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="text-center p-4 bg-gray-50 rounded-lg">
                 <Calendar className="h-8 w-8 text-gray-600 mx-auto mb-2" />
-                <p className="text-sm font-medium text-gray-600">Date</p>
+                <p className="text-sm font-medium text-gray-600 mb-1">Date</p>
                 <p className="text-lg font-semibold text-gray-900">
                   {new Date(todayAttendance.date).toLocaleDateString('id-ID')}
                 </p>
               </div>
               
-              <div className="text-center p-4 bg-green-50 rounded-lg">
-                <LogIn className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                <p className="text-sm font-medium text-gray-600">Clock In</p>
-                <p className="text-lg font-semibold text-gray-900">
+              <div className={`text-center p-4 rounded-lg ${todayAttendance.hasClockIn ? 'bg-green-50' : 'bg-gray-50'}`}>
+                <LogIn className={`h-8 w-8 mx-auto mb-2 ${todayAttendance.hasClockIn ? 'text-green-600' : 'text-gray-400'}`} />
+                <p className="text-sm font-medium text-gray-600 mb-1">Clock In</p>
+                <p className={`text-lg font-semibold ${todayAttendance.hasClockIn ? 'text-gray-900' : 'text-gray-400'}`}>
                   {formatAttendanceTime(todayAttendance.clockInTime)}
                 </p>
               </div>
               
-              <div className="text-center p-4 bg-red-50 rounded-lg">
-                <LogOut className="h-8 w-8 text-red-600 mx-auto mb-2" />
-                <p className="text-sm font-medium text-gray-600">Clock Out</p>
-                <p className="text-lg font-semibold text-gray-900">
+              <div className={`text-center p-4 rounded-lg ${todayAttendance.hasClockOut ? 'bg-red-50' : 'bg-gray-50'}`}>
+                <LogOut className={`h-8 w-8 mx-auto mb-2 ${todayAttendance.hasClockOut ? 'text-red-600' : 'text-gray-400'}`} />
+                <p className="text-sm font-medium text-gray-600 mb-1">Clock Out</p>
+                <p className={`text-lg font-semibold ${todayAttendance.hasClockOut ? 'text-gray-900' : 'text-gray-400'}`}>
                   {formatAttendanceTime(todayAttendance.clockOutTime)}
                 </p>
               </div>
@@ -216,7 +238,7 @@ const Attendance = () => {
             <div className="text-center py-8">
               <Clock className="mx-auto h-12 w-12 text-gray-400 mb-4" />
               <p className="text-gray-600">No attendance record for today</p>
-              <p className="text-sm text-gray-500 mt-1">Clock in to start tracking your attendance</p>
+              <p className="text-sm text-gray-500 mt-1">Click "Clock In" to start tracking your attendance</p>
             </div>
           )}
         </div>
