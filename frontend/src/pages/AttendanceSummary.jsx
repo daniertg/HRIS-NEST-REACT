@@ -40,20 +40,26 @@ const AttendanceSummary = () => {
       if (!grouped[date]) {
         grouped[date] = {
           date: date,
-          clockIn: null,
-          clockOut: null,
-          status: 'Absent'
+          clockInTime: null,
+          clockOutTime: null,
+          status: null
         };
       }
       
       if (record.status === 'IN') {
-        grouped[date].clockIn = record.time;
-        grouped[date].status = 'Present';
+         if(!grouped[date].clockInTime)
+          grouped[date].clockInTime = record.time;
       } else if (record.status === 'OUT') {
-        grouped[date].clockOut = record.time;
+        grouped[date].clockOutTime = record.time;
       }
     });
     
+    Object.values(grouped).forEach((day) => {
+     if (day.clockInTime && day.clockOutTime) day.status = 'Complete';
+     else if (day.clockInTime && !day.clockOutTime) day.status = 'In Progress';
+     else if (!day.clockInTime && day.clockOutTime) day.status = 'Invalid';
+     else day.status = 'No Data';
+    });
     return Object.values(grouped).sort((a, b) => new Date(b.date) - new Date(a.date));
   };
 
